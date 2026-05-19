@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartBin — Waste Analytics Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #0a0f0d;
+      --surface:   #111a14;
+      --border:    #1e2e21;
+      --metal:     #c8a84b;
+      --organic:   #4caf6f;
+      --inorganic: #5b9bd5;
+      --alert:     #e05252;
+      --muted:     #4a5e4e;
+      --text:      #d4e8d8;
+      --text-dim:  #6b8570;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle scanline texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(10,15,13,0.92);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--organic);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text);
+    }
+
+    .logo-text span {
+      color: var(--organic);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .mqtt-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+    }
+
+    .mqtt-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.4s;
+    }
+
+    .mqtt-dot.connected {
+      background: var(--organic);
+      box-shadow: 0 0 8px var(--organic);
+      animation: pulse 2s infinite;
+    }
+
+    .mqtt-dot.error {
+      background: var(--alert);
+      box-shadow: 0 0 8px var(--alert);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .last-update {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── LAYOUT ── */
+    main {
+      padding: 28px 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── BIN CARDS ── */
+    .bins-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .bin-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .bin-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .bin-card.metal::before   { background: var(--metal); }
+    .bin-card.organic::before { background: var(--organic); }
+    .bin-card.inorganic::before { background: var(--inorganic); }
+
+    .bin-card.alert-state {
+      border-color: var(--alert);
+      animation: alert-border 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes alert-border {
+      from { border-color: var(--alert); }
+      to   { border-color: rgba(224,82,82,0.3); }
+    }
+
+    .bin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .bin-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .bin-name.metal     { color: var(--metal); }
+    .bin-name.organic   { color: var(--organic); }
+    .bin-name.inorganic { color: var(--inorganic); }
+
+    .bin-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+
+    .bin-badge.ok     { background: rgba(76,175,111,0.15); color: var(--organic); }
+    .bin-badge.warn   { background: rgba(200,168,75,0.15);  color: var(--metal); }
+    .bin-badge.full   { background: rgba(224,82,82,0.15);   color: var(--alert); }
+
+    /* Vertical fill bar */
+    .bin-visual {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .fill-bar-wrap {
+      width: 40px;
+      height: 100px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .fill-bar-inner {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      border-radius: 4px;
+      transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .fill-bar-inner.metal     { background: linear-gradient(to top, var(--metal), rgba(200,168,75,0.4)); }
+    .fill-bar-inner.organic   { background: linear-gradient(to top, var(--organic), rgba(76,175,111,0.4)); }
+    .fill-bar-inner.inorganic { background: linear-gradient(to top, var(--inorganic), rgba(91,155,213,0.4)); }
+
+    .bin-stats {
+      flex: 1;
+    }
+
+    .fill-pct {
+      font-family: var(--mono);
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .fill-pct.metal     { color: var(--metal); }
+    .fill-pct.organic   { color: var(--organic); }
+    .fill-pct.inorganic { color: var(--inorganic); }
+
+    .fill-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .bin-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bin-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .bin-meta-key { color: var(--text-dim); }
+    .bin-meta-val { font-family: var(--mono); color: var(--text); font-size: 11px; }
+
+    /* ── BOTTOM GRID ── */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .card-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+
+    /* Donut chart */
+    .donut-wrap {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .donut-canvas-wrap {
+      position: relative;
+      width: 150px;
+      height: 150px;
+      flex-shrink: 0;
+    }
+
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .donut-total {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .donut-total-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      margin-top: 2px;
+    }
+
+    .donut-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .legend-info { flex: 1; }
+
+    .legend-name {
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 1px;
+    }
+
+    .legend-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .legend-pct {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    /* Event log */
+    .event-log {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .event-log::-webkit-scrollbar { width: 4px; }
+    .event-log::-webkit-scrollbar-track { background: transparent; }
+    .event-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .event-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      animation: slideIn 0.3s ease;
+    }
+
+    .event-row:last-child { border-bottom: none; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .event-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .event-type {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      width: 80px;
+      flex-shrink: 0;
+    }
+
+    .event-time {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .event-detail {
+      font-size: 12px;
+      color: var(--text-dim);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── ALERT BANNER ── */
+    .alert-banner {
+      background: rgba(224,82,82,0.1);
+      border: 1px solid rgba(224,82,82,0.4);
+      border-radius: 8px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--alert);
+      animation: slideIn 0.3s ease;
+    }
+
+    .alert-banner-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .alert-banner-text { flex: 1; }
+
+    .alert-dismiss {
+      background: none;
+      border: 1px solid rgba(224,82,82,0.4);
+      color: var(--alert);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: var(--mono);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+    }
+
+    .alert-dismiss:hover {
+      background: rgba(224,82,82,0.15);
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .bins-grid { grid-template-columns: 1fr; }
+      .bottom-grid { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      header { padding: 16px; }
+      main { padding: 16px; }
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-family: var(--mono);
+      letter-spacing: 0.06em;
+    }
+
+    /* No-data shimmer */
+    .shimmer {
+      background: linear-gradient(90deg, var(--border) 25%, rgba(30,46,33,0.6) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+      height: 14px;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🗑</div>
+      <div class="logo-text">SMART<span>BIN</span></div>
+    </div>
+    <div class="header-right">
+      <div class="mqtt-status">
+        <div class="mqtt-dot" :class="mqttStatusClass"></div>
+        MQTT {{ mqttStatusLabel }}
+      </div>
+      <div class="last-update" v-if="lastUpdate">
+        UPDATED {{ lastUpdate }}
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Alert banners -->
+    <div v-for="alert in activeAlerts" :key="alert.id">
+      <div class="alert-banner">
+        <span class="alert-banner-icon">⚠</span>
+        <span class="alert-banner-text">{{ alert.message }}</span>
+        <button class="alert-dismiss" @click="dismissAlert(alert.id)">DISMISS</button>
+      </div>
+    </div>
+
+    <!-- Stats summary row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Items Today</div>
+        <div class="stat-value">{{ stats.totalToday }}</div>
+        <div class="stat-sub">disposal events</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Most Active Bin</div>
+        <div class="stat-value" :style="{ color: mostActiveBin.color }">{{ mostActiveBin.name }}</div>
+        <div class="stat-sub">{{ mostActiveBin.count }} items today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Bins Near Full</div>
+        <div class="stat-value" :style="{ color: binsNearFull > 0 ? 'var(--alert)' : 'var(--text)' }">{{ binsNearFull }}</div>
+        <div class="stat-sub">above 80% capacity</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">System Uptime</div>
+        <div class="stat-value">{{ uptime }}</div>
+        <div class="stat-sub">since last restart</div>
+      </div>
+    </div>
+
+    <!-- Bin fill cards -->
+    <div>
+      <div class="section-label">Compartment Fill Levels</div>
+      <div class="bins-grid">
+        <div
+          v-for="bin in bins"
+          :key="bin.id"
+          class="bin-card"
+          :class="[bin.type, { 'alert-state': bin.fillPct >= 90 }]"
+        >
+          <div class="bin-header">
+            <div class="bin-name" :class="bin.type">{{ bin.label }}</div>
+            <div class="bin-badge" :class="fillBadge(bin.fillPct).cls">
+              {{ fillBadge(bin.fillPct).label }}
+            </div>
+          </div>
+          <div class="bin-visual">
+            <div class="fill-bar-wrap">
+              <div
+                class="fill-bar-inner"
+                :class="bin.type"
+                :style="{ height: bin.fillPct + '%' }"
+              ></div>
+            </div>
+            <div class="bin-stats">
+              <div class="fill-pct" :class="bin.type">{{ bin.fillPct }}<span style="font-size:16px">%</span></div>
+              <div class="fill-label">fill level</div>
+              <div class="bin-meta">
+                <div class="bin-meta-row">
+                  <span class="bin-meta-key">Items today</span>
+                  <span class="bin-meta-val">{{ bin.itemsToday }}</span>
+                </div>
+                <div class="bin-meta-row">
+                  <span class="bin-meta-key">Last item</span>
+                  <span class="bin-meta-val">{{ bin.lastItem || '—' }}</span>
+                </div>
+                <div class="bin-meta-row">
+                  <span class="bin-meta-key">Sensor</span>
+                  <span class="bin-meta-val" :style="{ color: bin.sensorOk ? 'var(--organic)' : 'var(--alert)' }">
+                    {{ bin.sensorOk ? 'OK' : 'ERR' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom: composition + event log -->
+    <div class="bottom-grid">
+
+      <!-- Donut composition chart -->
+      <div class="card">
+        <div class="card-title">Waste Composition — Today</div>
+        <div class="donut-wrap" v-if="stats.totalToday > 0">
+          <div class="donut-canvas-wrap">
+            <canvas id="donutChart" width="150" height="150"></canvas>
+            <div class="donut-center">
+              <div class="donut-total">{{ stats.totalToday }}</div>
+              <div class="donut-total-label">ITEMS</div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="legend-item" v-for="bin in bins" :key="bin.id">
+              <div class="legend-dot" :style="{ background: bin.color }"></div>
+              <div class="legend-info">
+                <div class="legend-name">{{ bin.label }}</div>
+                <div class="legend-count">{{ bin.itemsToday }} items</div>
+              </div>
+              <div class="legend-pct" :style="{ color: bin.color }">
+                {{ stats.totalToday > 0 ? Math.round(bin.itemsToday / stats.totalToday * 100) : 0 }}%
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="empty" v-else>NO DISPOSAL EVENTS YET</div>
+      </div>
+
+      <!-- Event log -->
+      <div class="card">
+        <div class="card-title">Live Disposal Log</div>
+        <div class="event-log" v-if="events.length > 0">
+          <div class="event-row" v-for="ev in events" :key="ev.id">
+            <div class="event-dot" :style="{ background: ev.color }"></div>
+            <div class="event-type" :style="{ color: ev.color }">{{ ev.type }}</div>
+            <div class="event-detail">{{ ev.detail }}</div>
+            <div class="event-time">{{ ev.time }}</div>
+          </div>
+        </div>
+        <div class="empty" v-else>AWAITING DISPOSAL EVENTS</div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
+
+const API_BASE = 'http://localhost:3000/api';
+const POLL_INTERVAL = 5000; // 5s polling fallback
+
+createApp({
+  setup() {
+    // ── State ──
+    const mqttConnected = ref(false);
+    const mqttError     = ref(false);
+    const lastUpdate    = ref(null);
+    const activeAlerts  = ref([]);
+    let   alertIdCounter = 0;
+
+    const bins = ref([
+      { id: 'metal',    label: 'Metals',    type: 'metal',    color: '#c8a84b', fillPct: 0, itemsToday: 0, lastItem: null, sensorOk: true },
+      { id: 'organic',  label: 'Organics',  type: 'organic',  color: '#4caf6f', fillPct: 0, itemsToday: 0, lastItem: null, sensorOk: true },
+      { id: 'inorganic',label: 'Inorganics',type: 'inorganic',color: '#5b9bd5', fillPct: 0, itemsToday: 0, lastItem: null, sensorOk: true },
+    ]);
+
+    const events = ref([]);
+    const stats  = ref({ totalToday: 0 });
+
+    let donutChart = null;
+    let pollTimer  = null;
+    let startTime  = Date.now();
+
+    // ── Computed ──
+    const mqttStatusClass = computed(() => ({
+      connected: mqttConnected.value && !mqttError.value,
+      error: mqttError.value,
+    }));
+
+    const mqttStatusLabel = computed(() =>
+      mqttError.value ? 'ERROR' : mqttConnected.value ? 'LIVE' : 'CONNECTING'
+    );
+
+    const binsNearFull = computed(() =>
+      bins.value.filter(b => b.fillPct >= 80).length
+    );
+
+    const mostActiveBin = computed(() => {
+      const sorted = [...bins.value].sort((a, b) => b.itemsToday - a.itemsToday);
+      const top = sorted[0];
+      return { name: top.label.toUpperCase(), color: top.color, count: top.itemsToday };
+    });
+
+    const uptime = computed(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    });
+
+    // ── Helpers ──
+    function fillBadge(pct) {
+      if (pct >= 90) return { cls: 'full', label: 'FULL' };
+      if (pct >= 70) return { cls: 'warn', label: 'HIGH' };
+      return { cls: 'ok', label: 'OK' };
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function pushAlert(message) {
+      const id = ++alertIdCounter;
+      activeAlerts.value.unshift({ id, message });
+      // Auto-dismiss after 30s
+      setTimeout(() => dismissAlert(id), 30000);
+    }
+
+    function dismissAlert(id) {
+      activeAlerts.value = activeAlerts.value.filter(a => a.id !== id);
+    }
+
+    // ── Data fetching ──
+    async function fetchStatus() {
+      try {
+        const res  = await fetch(`${API_BASE}/status`);
+        const data = await res.json();
+
+        // Update MQTT status
+        mqttConnected.value = data.mqtt_connected;
+        mqttError.value     = false;
+
+        // Update bins
+        if (data.bins) {
+          bins.value.forEach(bin => {
+            const fresh = data.bins[bin.id];
+            if (!fresh) return;
+
+            const wasOk = bin.fillPct < 90;
+            bin.fillPct    = fresh.fill_pct ?? bin.fillPct;
+            bin.itemsToday = fresh.items_today ?? bin.itemsToday;
+            bin.lastItem   = fresh.last_item ? formatTime(fresh.last_item) : bin.lastItem;
+            bin.sensorOk   = fresh.sensor_ok ?? true;
+
+            if (wasOk && bin.fillPct >= 90) {
+              pushAlert(`⚠ ${bin.label} bin is full (${bin.fillPct}%) — please empty soon.`);
+            }
+          });
+        }
+
+        stats.value.totalToday = bins.value.reduce((s, b) => s + b.itemsToday, 0);
+        lastUpdate.value = formatTime(Date.now());
+        updateDonut();
+      } catch (e) {
+        mqttError.value = true;
+        console.error('Status fetch failed:', e);
+      }
+    }
+
+    async function fetchEvents() {
+      try {
+        const res  = await fetch(`${API_BASE}/events?limit=30`);
+        const data = await res.json();
+        const binMap = { metal: bins.value[0], organic: bins.value[1], inorganic: bins.value[2] };
+
+        events.value = data.map(ev => ({
+          id:     ev.id,
+          type:   ev.category.toUpperCase(),
+          color:  binMap[ev.category]?.color ?? '#888',
+          detail: `Disposed into ${ev.category} bin`,
+          time:   formatTime(ev.created_at),
+        }));
+      } catch (e) {
+        console.error('Events fetch failed:', e);
+      }
+    }
+
+    // ── Chart ──
+    function updateDonut() {
+      nextTick(() => {
+        const canvas = document.getElementById('donutChart');
+        if (!canvas) return;
+
+        const data = bins.value.map(b => b.itemsToday);
+        const colors = bins.value.map(b => b.color);
+        const total = data.reduce((s, v) => s + v, 0);
+        if (total === 0) return;
+
+        if (donutChart) {
+          donutChart.data.datasets[0].data = data;
+          donutChart.update('none');
+          return;
+        }
+
+        donutChart = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: bins.value.map(b => b.label),
+            datasets: [{
+              data,
+              backgroundColor: colors,
+              borderColor: '#111a14',
+              borderWidth: 3,
+              hoverOffset: 6,
+            }]
+          },
+          options: {
+            cutout: '70%',
+            plugins: { legend: { display: false }, tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${ctx.raw} items`
+              },
+              backgroundColor: '#1e2e21',
+              titleColor: '#d4e8d8',
+              bodyColor: '#6b8570',
+              borderColor: '#2a3e2d',
+              borderWidth: 1,
+              padding: 10,
+            }},
+            animation: { duration: 600 },
+          }
+        });
+      });
+    }
+
+    // ── Uptime ticker ──
+    let uptimeTimer = null;
+
+    // ── Lifecycle ──
+    onMounted(() => {
+      fetchStatus();
+      fetchEvents();
+      pollTimer   = setInterval(() => { fetchStatus(); fetchEvents(); }, POLL_INTERVAL);
+      uptimeTimer = setInterval(() => {}, 1000); // forces recompute
+    });
+
+    onUnmounted(() => {
+      clearInterval(pollTimer);
+      clearInterval(uptimeTimer);
+      if (donutChart) donutChart.destroy();
+    });
+
+    return {
+      mqttConnected, mqttError, mqttStatusClass, mqttStatusLabel,
+      lastUpdate, activeAlerts, bins, events, stats,
+      binsNearFull, mostActiveBin, uptime,
+      fillBadge, dismissAlert,
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
