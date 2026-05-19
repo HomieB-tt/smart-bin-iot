@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartBin — Demo Control Panel</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #0a0f0d;
+      --surface:   #111a14;
+      --border:    #1e2e21;
+      --metal:     #c8a84b;
+      --organic:   #4caf6f;
+      --inorganic: #5b9bd5;
+      --alert:     #e05252;
+      --muted:     #4a5e4e;
+      --text:      #d4e8d8;
+      --text-dim:  #6b8570;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,15,13,0.95);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-text {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .logo-text span { color: var(--alert); }
+
+    .nav-link {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .page-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--alert);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .page-desc {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    .warning-box {
+      background: rgba(224,82,82,0.08);
+      border: 1px solid rgba(224,82,82,0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: rgba(224,82,82,0.85);
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    /* ── CLASSIFICATION BUTTONS ── */
+    .classify-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .classify-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 24px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    .classify-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .classify-btn:active {
+      transform: translateY(0);
+    }
+
+    .classify-btn.metal {
+      border-color: rgba(200,168,75,0.4);
+    }
+
+    .classify-btn.metal:hover {
+      background: rgba(200,168,75,0.08);
+      border-color: var(--metal);
+    }
+
+    .classify-btn.organic {
+      border-color: rgba(76,175,111,0.4);
+    }
+
+    .classify-btn.organic:hover {
+      background: rgba(76,175,111,0.08);
+      border-color: var(--organic);
+    }
+
+    .classify-btn.inorganic {
+      border-color: rgba(91,155,213,0.4);
+    }
+
+    .classify-btn.inorganic:hover {
+      background: rgba(91,155,213,0.08);
+      border-color: var(--inorganic);
+    }
+
+    .classify-icon {
+      font-size: 28px;
+    }
+
+    .classify-label {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .classify-label.metal     { color: var(--metal); }
+    .classify-label.organic   { color: var(--organic); }
+    .classify-label.inorganic { color: var(--inorganic); }
+
+    .classify-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* ── FILL SLIDERS ── */
+    .fill-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .fill-row {
+      display: grid;
+      grid-template-columns: 110px 1fr 60px 90px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .fill-label-col {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .fill-label-col.metal     { color: var(--metal); }
+    .fill-label-col.organic   { color: var(--organic); }
+    .fill-label-col.inorganic { color: var(--inorganic); }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"].metal::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--metal);
+      cursor: pointer;
+    }
+
+    input[type="range"].organic::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--organic);
+      cursor: pointer;
+    }
+
+    input[type="range"].inorganic::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--inorganic);
+      cursor: pointer;
+    }
+
+    .fill-pct-display {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .fill-apply-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .fill-apply-btn:hover {
+      border-color: var(--muted);
+      color: var(--text);
+    }
+
+    /* ── SCENARIO BUTTONS ── */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .scenario-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    .scenario-btn:hover {
+      border-color: var(--muted);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .scenario-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--organic);
+      margin-bottom: 6px;
+    }
+
+    .scenario-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* ── RESPONSE LOG ── */
+    .log-area {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      max-height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-area::-webkit-scrollbar { width: 4px; }
+    .log-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .log-time { color: var(--text-dim); flex-shrink: 0; }
+    .log-ok   { color: var(--organic); }
+    .log-err  { color: var(--alert); }
+
+    /* ── RESET BUTTON ── */
+    .danger-zone {
+      border-color: rgba(224,82,82,0.3);
+    }
+
+    .reset-btn {
+      background: transparent;
+      border: 1px solid rgba(224,82,82,0.4);
+      color: var(--alert);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .reset-btn:hover {
+      background: rgba(224,82,82,0.1);
+    }
+
+    .reset-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 8px;
+    }
+
+    @media (max-width: 700px) {
+      .classify-grid  { grid-template-columns: 1fr; }
+      .scenario-grid  { grid-template-columns: 1fr; }
+      .fill-row       { grid-template-columns: 90px 1fr 50px 80px; }
+      main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-text">SMART<span>BIN</span> — DEMO CTRL</div>
+    </div>
+    <a class="nav-link" href="/">← Dashboard</a>
+  </header>
+
+  <main>
+
+    <div>
+      <div class="page-title">Exhibition Demo Control Panel</div>
+      <p class="page-desc">Inject simulated events into the system without hardware. Use this if a sensor misbehaves during the demo.</p>
+    </div>
+
+    <div class="warning-box">
+      ⚠ SIMULATION MODE — events injected here are real MQTT messages. They will appear on the dashboard and be saved to the database.
+    </div>
+
+    <!-- ── CLASSIFY ── -->
+    <div class="card">
+      <div class="section-label">Simulate a disposal event</div>
+      <div class="classify-grid">
+        <button class="classify-btn metal" @click="classify('metal')" :disabled="loading">
+          <span class="classify-icon">🔩</span>
+          <span class="classify-label metal">Metal</span>
+          <span class="classify-sub">Inductive sensor triggered</span>
+        </button>
+        <button class="classify-btn organic" @click="classify('organic')" :disabled="loading">
+          <span class="classify-icon">🍌</span>
+          <span class="classify-label organic">Organic</span>
+          <span class="classify-sub">Moisture sensor triggered</span>
+        </button>
+        <button class="classify-btn inorganic" @click="classify('inorganic')" :disabled="loading">
+          <span class="classify-icon">🧴</span>
+          <span class="classify-label inorganic">Inorganic</span>
+          <span class="classify-sub">Default bin (non-metal, dry)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── FILL LEVELS ── -->
+    <div class="card">
+      <div class="section-label">Set fill levels</div>
+      <div class="fill-grid">
+        <div class="fill-row" v-for="bin in bins" :key="bin.id">
+          <span class="fill-label-col" :class="bin.id">{{ bin.label }}</span>
+          <input
+            type="range" min="0" max="100" :class="bin.id"
+            v-model="bin.fillPct"
+          />
+          <span class="fill-pct-display">{{ bin.fillPct }}%</span>
+          <button class="fill-apply-btn" @click="setFill(bin)">APPLY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DEMO SCENARIOS ── -->
+    <div class="card">
+      <div class="section-label">Demo scenarios</div>
+      <div class="scenario-grid">
+        <button class="scenario-btn" @click="runScenario('mixed_disposal')">
+          <div class="scenario-title">Mixed disposal burst</div>
+          <div class="scenario-desc">Fires 6 events in sequence — 2 metal, 2 organic, 2 inorganic. Shows all three bins filling up.</div>
+        </button>
+        <button class="scenario-btn" @click="runScenario('bin_full_alert')">
+          <div class="scenario-title">Bin full alert</div>
+          <div class="scenario-desc">Sets the metal bin to 92%. Triggers the alert banner on the dashboard and SMS logic on the server.</div>
+        </button>
+        <button class="scenario-btn" @click="runScenario('sensor_error')">
+          <div class="scenario-title">Sensor error</div>
+          <div class="scenario-desc">Publishes a sensor error status for the organic fill sensor. Shows fault indicator on dashboard.</div>
+        </button>
+        <button class="scenario-btn" @click="runScenario('reset_demo')">
+          <div class="scenario-title">Reset to clean state</div>
+          <div class="scenario-desc">Sets all fill levels to 0% and clears today's item counts. Use before starting a fresh demo run.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── LOG ── -->
+    <div class="card">
+      <div class="section-label">Action log</div>
+      <div class="log-area">
+        <div class="log-entry" v-if="log.length === 0">
+          <span class="log-time">--:--:--</span>
+          <span style="color: var(--text-dim)">No actions yet. Use the controls above.</span>
+        </div>
+        <div class="log-entry" v-for="entry in log" :key="entry.id">
+          <span class="log-time">{{ entry.time }}</span>
+          <span :class="entry.ok ? 'log-ok' : 'log-err'">{{ entry.ok ? '✓' : '✗' }}</span>
+          <span :style="{ color: entry.ok ? 'var(--text)' : 'var(--alert)' }">{{ entry.message }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DANGER ZONE ── -->
+    <div class="card danger-zone">
+      <div class="section-label" style="color: rgba(224,82,82,0.6)">Database reset</div>
+      <button class="reset-btn" @click="confirmReset">CLEAR TODAY'S DATA</button>
+      <p class="reset-desc">Deletes all classification events and fill readings from today. Cannot be undone. Use only before a demo run.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const { createApp, ref } = Vue;
+const API = 'http://localhost:3000/api';
+
+createApp({
+  setup() {
+    const loading = ref(false);
+    const log     = ref([]);
+    let   logId   = 0;
+
+    const bins = ref([
+      { id: 'metal',    label: 'Metal',    fillPct: 0 },
+      { id: 'organic',  label: 'Organic',  fillPct: 0 },
+      { id: 'inorganic',label: 'Inorganic',fillPct: 0 },
+    ]);
+
+    function addLog(message, ok = true) {
+      const now = new Date();
+      const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      log.value.unshift({ id: ++logId, time, message, ok });
+      if (log.value.length > 50) log.value.pop();
+    }
+
+    async function simulate(payload) {
+      try {
+        const res = await fetch(`${API}/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        return true;
+      } catch (e) {
+        addLog(`Request failed: ${e.message}`, false);
+        return false;
+      }
+    }
+
+    async function classify(category) {
+      loading.value = true;
+      const ok = await simulate({ type: 'classify', category });
+      if (ok) addLog(`Classification event: ${category.toUpperCase()}`);
+      loading.value = false;
+    }
+
+    async function setFill(bin) {
+      loading.value = true;
+      const ok = await simulate({ type: 'fill', category: bin.id, fill_pct: bin.fillPct });
+      if (ok) addLog(`Fill level set: ${bin.label} → ${bin.fillPct}%`);
+      loading.value = false;
+    }
+
+    async function runScenario(name) {
+      loading.value = true;
+      addLog(`Running scenario: ${name}...`);
+
+      if (name === 'mixed_disposal') {
+        const sequence = ['metal', 'organic', 'inorganic', 'metal', 'organic', 'inorganic'];
+        for (const cat of sequence) {
+          await simulate({ type: 'classify', category: cat });
+          await new Promise(r => setTimeout(r, 600));
+        }
+        addLog('Scenario done: 6 disposal events fired');
+
+      } else if (name === 'bin_full_alert') {
+        await simulate({ type: 'fill', category: 'metal', fill_pct: 92 });
+        bins.value.find(b => b.id === 'metal').fillPct = 92;
+        addLog('Metal bin set to 92% — alert should appear on dashboard');
+
+      } else if (name === 'sensor_error') {
+        const ok = await fetch(`${API}/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'sensor_error', sensor: 'organic' }),
+        }).then(r => r.ok).catch(() => false);
+        if (ok) addLog('Sensor error published for: organic fill sensor');
+        else    addLog('Sensor error scenario not supported by current server', false);
+
+      } else if (name === 'reset_demo') {
+        for (const bin of bins.value) {
+          await simulate({ type: 'fill', category: bin.id, fill_pct: 0 });
+          bin.fillPct = 0;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        addLog('All bins reset to 0%');
+      }
+
+      loading.value = false;
+    }
+
+    function confirmReset() {
+      const confirmed = window.confirm(
+        'This will delete ALL classification events and fill readings from today.\n\nAre you sure?'
+      );
+      if (confirmed) resetTodayData();
+    }
+
+    async function resetTodayData() {
+      try {
+        const res = await fetch(`${API}/reset-today`, { method: 'POST' });
+        if (res.ok) {
+          addLog('Today\'s data cleared from database');
+        } else {
+          addLog('Reset endpoint not available — add POST /api/reset-today to server.js', false);
+        }
+      } catch (e) {
+        addLog(`Reset failed: ${e.message}`, false);
+      }
+    }
+
+    return { loading, bins, log, classify, setFill, runScenario, confirmReset };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
